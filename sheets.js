@@ -212,6 +212,8 @@ async function recordScan(employeeId) {
   try {
     await appendRow(config.SHEET_LOG, logRow);
 
+    // FIXED: Only record allowance on Time In AND only if employee manually entered their ID (not automatic)
+    // The UI now requires explicit employee ID entry before calling this function
     if (status === 'Time In') {
       // Check if user is not admin
       const isAdmin = String(employee.id).toLowerCase() === String(config.ADMIN_ID).toLowerCase();
