@@ -17,7 +17,9 @@ function loadEnv() {
     SHEET_EMPLOYEES: 'EMPLOYEES',
     SHEET_LOG: 'SHEET_LOG',
     SHEET_ALLOWANCE: 'Daily Allowance',
-    ALLOWANCE_AMOUNT: `100
+    ALLOWANCE_AMOUNT: 100,
+    PENDING_ALLOWANCE: 700,
+    ADMIN_ID: 'admin'
   };
 
   if (fs.existsSync(ENV_PATH)) {
@@ -30,6 +32,7 @@ function loadEnv() {
       const value = trimmed.slice(idx + 1).trim();
       if (key === 'PORT') env.PORT = Number(value);
       else if (key === 'ALLOWANCE_AMOUNT') env.ALLOWANCE_AMOUNT = Number(value);
+      else if (key === 'PENDING_ALLOWANCE') env.PENDING_ALLOWANCE = Number(value);
       else env[key] = value;
     });
   }
@@ -204,23 +207,44 @@ async function recordScan(employeeId) {
   const logRow = [logDate, employee.id, employee.name, employee.position, status, time];
 
   let allowance = { ok: false, skipped: true, amount: config.ALLOWANCE_AMOUNT };
+  let pendingAllowance = { ok: false, skipped: true, amount: config.PENDING_ALLOWANCE };
 
   try {
     await appendRow(config.SHEET_LOG, logRow);
 
     if (status === 'Time In') {
-      const allowanceRow = [employee.id, employee.name, config.ALLOWANCE_AMOUNT, logDate, time];
-      try {
-        await appendRow(config.SHEET_ALLOWANCE, allowanceRow);
-        dbModule.insertAllowance({
-          employee_id: employee.id,
-          name: employee.name,
-          amount: config.ALLOWANCE_AMOUNT,
-          log_date: logDate
-        });
-        allowance = { ok: true, skipped: false, amount: config.ALLOWANCE_AMOUNT };
-      } catch (allowErr) {
-        allowance = { ok: false, skipped: true, amount: config.ALLOWANCE_AMOUNT, error: allowErr.message };
+      // Check if user is not admin
+      const isAdmin = String(employee.id).toLowerCase() === String(config.ADMIN_ID).toLowerCase();
+
+      if (!isAdmin) {
+        // Release daily allowance
+        const allowanceRow = [employee.id, employee.name, config.ALLOWANCE_AMOUNT, logDate, time];
+        try {
+          await appendRow(config.SHEET_ALLOWANCE, allowanceRow);
+          dbModule.insertAllowance({
+            employee_id: employee.id,
+            name: employee.name,
+            amount: config.ALLOWANCE_AMOUNT,
+            log_date: logDate
+          });
+          allowance = { ok: true, skipped: false, amount: config.ALLOWANCE_AMOUNT };
+        } catch (allowErr) {
+          allowance = { ok: false, skipped: true, amount: config.ALLOWANCE_AMOUNT, error: allowErr.message };
+        }
+
+        // Release pending allowance
+        try {
+          await appendRow(config.SHEET_ALLOWANCE, [employee.id, employee.name, config.PENDING_ALLOWANCE, logDate, time]);
+          dbModule.insertAllowance({
+            employee_id: employee.id,
+            name: employee.name,
+            amount: config.PENDING_ALLOWANCE,
+            log_date: logDate
+          });
+          pendingAllowance = { ok: true, skipped: false, amount: config.PENDING_ALLOWANCE };
+        } catch (pendingErr) {
+          pendingAllowance = { ok: false, skipped: true, amount: config.PENDING_ALLOWANCE, error: pendingErr.message };
+        }
       }
     }
   } catch (sheetErr) {
@@ -244,7 +268,8 @@ async function recordScan(employeeId) {
     position: employee.position,
     status,
     time,
-    allowance
+    allowance,
+    pendingAllowance
   };
 }
 
@@ -305,6 +330,8 @@ async function getAllowanceData() {
     .filter((r) => r.isToday)
     .reduce((sum, r) => sum + Number(r.allowance || 0), 0);
 
+  const totalPending = rows.length > 0 ? config.PENDING_ALLOWANCE : 0;
+
   return {
     ok: true,
     date: logDate,
@@ -312,7 +339,7 @@ async function getAllowanceData() {
     tab: config.SHEET_ALLOWANCE,
     rows,
     totalReleased,
-    totalPending: 0
+    totalPending
   };
 }
 
