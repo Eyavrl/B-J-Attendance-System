@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B&amp;J Aircon Services — Attendance</title>
+<script src="api.js"></script>
+<style>
+  :root{--bg:#080b1f;--surface:#121838;--border:#262e63;--text:#eef1fb;--muted:#8a93c4;--mint:#a8f0c6;--mono:monospace;--sans:system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:linear-gradient(180deg,#0d1230,var(--bg));color:var(--text);font-family:var(--sans);min-height:100vh;padding:24px 18px 88px}
+  .wrap{max-width:480px;width:100%;margin:0 auto}
+  .nav{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:16px}
+  .nav a{flex:1;text-align:center;text-decoration:none;color:var(--muted);font-size:11px;padding:10px 6px;border-radius:8px}
+  .nav a.active{color:var(--mint);background:rgba(168,240,198,.1);font-weight:600}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:var(--mint);font-size:11px;letter-spacing:.5px;text-transform:uppercase;font-weight:700;margin-bottom:20px}
+  .ok-box{background:#0f2a1f;border:1px solid #1f6f4e;border-radius:10px;padding:12px 14px;color:var(--mint);font-size:13px;line-height:1.5;margin-bottom:14px;display:none}
+  .err-box{background:#3a1a1a;border:1px solid #ef6a5c;border-radius:10px;padding:12px 14px;color:#ffb4ad;font-size:13px;line-height:1.5;margin-bottom:14px;display:none}
+  .hint{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:14px}
+  .hint code{font-family:var(--mono);font-size:11px;background:#0a0e28;padding:2px 6px;border-radius:4px}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .btn{border:none;border-radius:9px;padding:11px 18px;font-weight:600;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block;text-align:center}
+  .btn-primary{background:var(--mint);color:#06160f;flex:1}
+  .btn-secondary{background:#1a2150;color:var(--text);border:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="nav">
+  <a href="index.html" class="active">Home</a>
+  <a href="scan.html" id="navScan">Attendance</a>
+  <a href="allowance.html" id="navAllowance">Allowance</a>
+</nav>
+<div class="card">
+  <h1>B&amp;J Aircon Services</h1>
+  <div class="sub">Attendance System</div>
+
+  <div class="ok-box" id="okBox"></div>
+  <div class="err-box" id="errBox"></div>
+
+  <p class="hint">
+    1. Share your Google Sheet with<br>
+    <code>b-j-aircon-services-attendance@capable-matrix-500508-d3.iam.gserviceaccount.com</code><br><br>
+    2. Double-click <code>attendance-backend/start.bat</code><br><br>
+    3. Open attendance below
+  </p>
+
+  <div class="btns">
+    <a class="btn btn-primary" id="openBtn" href="scan.html">Open Attendance</a>
+    <button class="btn btn-secondary" id="testBtn" type="button">Test Connection</button>
+  </div>
+</div>
+</div>
+
+<script>
+function showOk(msg) {
+  document.getElementById('okBox').style.display = 'block';
+  document.getElementById('okBox').textContent = msg;
+  document.getElementById('errBox').style.display = 'none';
+}
+
+function showErr(msg) {
+  document.getElementById('errBox').style.display = 'block';
+  document.getElementById('errBox').textContent = msg;
+  document.getElementById('okBox').style.display = 'none';
+}
+
+function testConnection(openAfter) {
+  showOk('Connecting to Google Sheet and local database…');
+  return BjApi.runBackend('pingBackend').then(function (data) {
+    localStorage.setItem(BjApi.STORAGE_KEY, BjApi.getApiBase());
+    if (data && data.ok) {
+      showOk('Connected to "' + data.spreadsheet + '" (' + data.employeeCount + ' employees).');
+      if (openAfter) window.location.href = 'scan.html';
+      return data;
+    }
+    if (data && data.missingSheets && data.missingSheets.length) {
+      showErr('Missing sheet tabs: ' + data.missingSheets.join(', ') + '. Add EMPLOYEES and SHEET_LOG tabs to your Google Sheet.');
+      return data;
+    }
+    showErr((data && data.error) || 'Unexpected response.');
+    throw new Error('bad response');
+  }).catch(function (err) {
+    if (err.message !== 'bad response') {
+      showErr(err.message + ' — Run attendance-backend/start.bat first.');
+    }
+    throw err;
+  });
+}
+
+document.getElementById('testBtn').addEventListener('click', function () { testConnection(false); });
+
+document.getElementById('openBtn').addEventListener('click', function (e) {
+  if (window.location.protocol.startsWith('http')) return;
+  e.preventDefault();
+  testConnection(true).catch(function () {
+    window.location.href = 'scan.html';
+  });
+});
+
+if (window.location.protocol.startsWith('http') && window.location.port === '3000') {
+  testConnection(false);
+}
+</script>
+</body>
+</html>
