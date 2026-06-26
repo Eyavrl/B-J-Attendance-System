@@ -59,7 +59,7 @@
         <th>Scan ID</th>
         <th>Unique ID</th>
         <th>Full Name</th>
-        <th>Scan</th>
+        <th>Status</th>
         <th>Allowance Amount</th>
         <th>Date</th>
       </tr>
@@ -108,11 +108,12 @@ function render(data) {
   document.getElementById('tbody').innerHTML = rows.map(function (r) {
     var rowClass = r.isToday ? 'highlight' : 'dim';
     var badge = r.isToday ? ' <span class="highlight-badge">✓ TODAY</span>' : '';
+    var status = r.status || 'Received';
     return '<tr class="' + rowClass + '">' +
       '<td>' + esc(r.scanId) + '</td>' +
       '<td style="font-family:var(--mono);font-size:11px">' + esc(r.id) + '</td>' +
       '<td>' + esc(r.name) + badge + '</td>' +
-      '<td>' + esc(r.scan || '') + '</td>' +
+      '<td>' + esc(status) + '</td>' +
       '<td style="font-family:var(--mono)">₱' + esc(String(r.allowance || 100)) + '</td>' +
       '<td style="font-family:var(--mono);font-size:11px">' + esc(r.date || '') + '</td>' +
       '</tr>';
