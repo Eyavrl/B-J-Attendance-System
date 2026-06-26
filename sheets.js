@@ -212,14 +212,14 @@ async function recordScan(employeeId) {
   try {
     await appendRow(config.SHEET_LOG, logRow);
 
-    // FIXED: Only record allowance on Time In AND only if employee manually entered their ID (not automatic)
+    // Only record allowance on Time In AND only if employee manually entered their ID (not automatic)
     // The UI now requires explicit employee ID entry before calling this function
     if (status === 'Time In') {
       // Check if user is not admin
       const isAdmin = String(employee.id).toLowerCase() === String(config.ADMIN_ID).toLowerCase();
 
       if (!isAdmin) {
-        // Release daily allowance
+        // Release daily allowance with current date
         const allowanceRow = [employee.id, employee.name, config.ALLOWANCE_AMOUNT, logDate, time];
         try {
           await appendRow(config.SHEET_ALLOWANCE, allowanceRow);
@@ -234,7 +234,7 @@ async function recordScan(employeeId) {
           allowance = { ok: false, skipped: true, amount: config.ALLOWANCE_AMOUNT, error: allowErr.message };
         }
 
-        // Release pending allowance
+        // Release pending allowance with current date
         try {
           await appendRow(config.SHEET_ALLOWANCE, [employee.id, employee.name, config.PENDING_ALLOWANCE, logDate, time]);
           dbModule.insertAllowance({
@@ -311,7 +311,7 @@ async function getAllowanceData() {
       scanId: idx + 1,
       id: String(row[0] || '').trim(),
       name: String(row[1] || '').trim(),
-      scan: 'Time In',
+      status: 'Received',
       allowance: Number(row[2] || amount),
       date: String(row[3] || '').trim(),
       isToday: String(row[3] || '').slice(0, 10) === logDate
@@ -321,7 +321,7 @@ async function getAllowanceData() {
       scanId: idx + 1,
       id: row.id,
       name: row.name,
-      scan: 'Time In',
+      status: 'Received',
       allowance: Number(row.allowance || amount),
       date: row.date,
       isToday: row.date === logDate
