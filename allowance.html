@@ -7,7 +7,7 @@
 <link rel="icon" type="image/jpeg" href="https://eyavrl.github.io/attendance.html/bj_logo.png.jpg">
 <script src="api.js"></script>
 <style>
-  :root{--bg:#080b1f;--surface:#121838;--border:#262e63;--text:#eef1fb;--muted:#8a93c4;--mint:#a8f0c6;--mint-deep:#1f6f4e;--amber:#f2b25c;--mono:monospace;--sans:system-ui,sans-serif}
+  :root{--bg:#080b1f;--surface:#121838;--border:#262e63;--text:#eef1fb;--muted:#8a93c4;--mint:#a8f0c6;--mint-deep:#1f6f4e;--amber:#f2b25c;--mono:monospace;--sans:system-ui,sans-serif;--success:#10b981;--success-bg:#064e3b}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:linear-gradient(180deg,#0d1230,var(--bg));color:var(--text);font-family:var(--sans);min-height:100vh;padding-bottom:72px}
   .topbar{padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(18,24,56,.95)}
@@ -18,7 +18,7 @@
   .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
   .stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   .stat .value{font-size:22px;font-weight:700;margin-top:6px;font-family:var(--mono)}
-  .stat.released .value{color:var(--mint)}
+  .stat.released .value{color:var(--success)}
   .stat.pending .value{color:var(--amber)}
   .banner{font-size:13px;padding:12px 14px;border-radius:10px;margin-bottom:14px;line-height:1.5}
   .banner.info{background:rgba(18,24,56,.9);border:1px solid var(--border);color:var(--muted)}
@@ -29,6 +29,9 @@
   th{background:#1d214e;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
   tr:last-child td{border-bottom:none}
   tr.dim td{opacity:.45}
+  tr.highlight td{background:rgba(16,185,129,.12);border-bottom-color:rgba(16,185,129,.2)}
+  tr.highlight:hover td{background:rgba(16,185,129,.18)}
+  .highlight-badge{display:inline-block;background:var(--success-bg);color:var(--success);padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;margin-left:4px}
   .refresh-row{text-align:right;margin-bottom:10px}
   .refresh-row button{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer}
   .nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(18,24,56,.98);border-top:1px solid var(--border);padding:8px 6px calc(8px + env(safe-area-inset-bottom));z-index:10}
@@ -103,10 +106,12 @@ function render(data) {
   }
 
   document.getElementById('tbody').innerHTML = rows.map(function (r) {
-    return '<tr class="' + (r.isToday ? '' : 'dim') + '">' +
+    var rowClass = r.isToday ? 'highlight' : 'dim';
+    var badge = r.isToday ? ' <span class="highlight-badge">✓ TODAY</span>' : '';
+    return '<tr class="' + rowClass + '">' +
       '<td>' + esc(r.scanId) + '</td>' +
       '<td style="font-family:var(--mono);font-size:11px">' + esc(r.id) + '</td>' +
-      '<td>' + esc(r.name) + '</td>' +
+      '<td>' + esc(r.name) + badge + '</td>' +
       '<td>' + esc(r.scan || '') + '</td>' +
       '<td style="font-family:var(--mono)">₱' + esc(String(r.allowance || 100)) + '</td>' +
       '<td style="font-family:var(--mono);font-size:11px">' + esc(r.date || '') + '</td>' +
