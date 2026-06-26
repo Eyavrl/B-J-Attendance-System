@@ -7,13 +7,17 @@
 <link rel="icon" type="image/jpeg" href="https://eyavrl.github.io/attendance.html/bj_logo.png.jpg">
 <script src="api.js"></script>
 <style>
-  :root{--bg:#080b1f;--surface:#121838;--border:#262e63;--text:#eef1fb;--muted:#8a93c4;--mint:#a8f0c6;--mint-deep:#1f6f4e;--amber:#f2b25c;--mono:monospace;--sans:system-ui,sans-serif;--success:#10b981;--success-bg:#064e3b}
+  :root{--bg:#080b1f;--surface:#121838;--border:#262e63;--text:#eef1fb;--muted:#8a93c4;--mint:#a8f0c6;--mint-deep:#1f6f4e;--amber:#f2b25c;--mono:monospace;--sans:system-ui,sans-serif;--success:#10b981;--success-bg:rgba(16,185,129,.12)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:linear-gradient(180deg,#0d1230,var(--bg));color:var(--text);font-family:var(--sans);min-height:100vh;padding-bottom:72px}
   .topbar{padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(18,24,56,.95)}
   .topbar h1{font-size:18px}
   .topbar p{font-size:12px;color:var(--mint);margin-top:4px}
   main{max-width:820px;margin:0 auto;padding:16px 18px 24px}
+  .employee-lookup{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+  .employee-lookup label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+  .employee-lookup input{width:100%;padding:8px 10px;background:rgba(8,11,31,.5);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:14px}
+  .employee-lookup input:focus{outline:none;border-color:var(--mint);box-shadow:0 0 0 2px rgba(168,240,198,.1)}
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
   .stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px}
   .stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -48,6 +52,12 @@
 </div>
 <main>
   <div class="banner info" id="banner">Connecting to Google Sheet…</div>
+  
+  <div class="employee-lookup">
+    <label for="employeeIdInput">Search Employee ID</label>
+    <input type="text" id="employeeIdInput" placeholder="Enter employee ID or scan…" autocomplete="off">
+  </div>
+  
   <div class="stats">
     <div class="stat released"><div class="label">Released today (Time In)</div><div class="value" id="totalReleased">₱0</div></div>
     <div class="stat pending"><div class="label">Pending today</div><div class="value" id="totalPending">₱0</div></div>
@@ -74,6 +84,7 @@
 </nav>
 <script>
 var API_URL = '';
+var allRows = [];
 
 function initApi() {
   API_URL = BjApi.getApiBase();
@@ -105,41 +116,117 @@ function render(data) {
     return;
   }
 
+  allRows = rows; // Store all rows for filtering
+  renderTable(rows);
+}
+
+function renderTable(rows) {
   document.getElementById('tbody').innerHTML = rows.map(function (r) {
     var rowClass = r.isToday ? 'highlight' : 'dim';
     var badge = r.isToday ? ' <span class="highlight-badge">✓ TODAY</span>' : '';
     var status = r.status || 'Received';
+    var date = r.date || formatToday();
     return '<tr class="' + rowClass + '">' +
       '<td>' + esc(r.scanId) + '</td>' +
       '<td style="font-family:var(--mono);font-size:11px">' + esc(r.id) + '</td>' +
       '<td>' + esc(r.name) + badge + '</td>' +
       '<td>' + esc(status) + '</td>' +
       '<td style="font-family:var(--mono)">₱' + esc(String(r.allowance || 100)) + '</td>' +
-      '<td style="font-family:var(--mono);font-size:11px">' + esc(r.date || '') + '</td>' +
+      '<td style="font-family:var(--mono);font-size:11px">' + esc(date) + '</td>' +
       '</tr>';
   }).join('');
 }
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+function formatToday() {
+  var now = new Date();
+  var month = String(now.getMonth() + 1).padStart(2, '0');
+  var day = String(now.getDate()).padStart(2, '0');
+  var year = now.getFullYear();
+  return month + '/' + day + '/' + year;
+}
+
+function getTodayLogsData() {
+  var today = formatToday();
+  var params = { action: 'today' };
+  
+  var promise = BjApi.isLocalBackend(API_URL)
+    ? BjApi.runBackend('getTodayLogs')
+    : jsonp(params);
+  
+  return promise.then(function(data) {
+    if (!data.ok) return {};
+    var logsMap = {};
+    (data.logs || []).forEach(function(log) {
+      logsMap[log.id] = { status: log.status, time: log.time };
+    });
+    return logsMap;
+  }).catch(function() {
+    return {};
+  });
+}
+
 function load() {
   setBanner('Loading…', 'info');
   var loadPromise = BjApi.isLocalBackend(API_URL)
     ? BjApi.runBackend('getAllowance')
     : jsonp({ action: 'allowance' });
+  
   loadPromise.then(function (data) {
     if (!data.ok) {
       setBanner(data.error || 'Could not load allowance.', 'err');
       return;
     }
-    setBanner('Allowance tab: "' + (data.tab || 'Daily Allowance') + '". ₱100 on scan. Open that tab in Google Sheets (not SHEET_LOG).', 'ok');
-    render(data);
+    
+    // Enrich rows with today's status and date
+    return getTodayLogsData().then(function(logsMap) {
+      var today = formatToday();
+      (data.rows || []).forEach(function(row) {
+        if (logsMap[row.id]) {
+          row.status = logsMap[row.id].status;
+          row.date = today;
+          row.isToday = true;
+        } else {
+          row.status = 'Pending';
+          row.date = row.date || today;
+          row.isToday = false;
+        }
+      });
+      render(data);
+      setBanner('Allowance tab: "' + (data.tab || 'Daily Allowance') + '". ₱100 on scan. Open that tab in Google Sheets (not SHEET_LOG).', 'ok');
+    });
   }).catch(function (err) {
     setBanner(err.message, 'err');
   });
 }
 
-document.getElementById('refreshBtn').addEventListener('click', load);
+function filterByEmployeeId(searchId) {
+  if (!searchId.trim()) {
+    renderTable(allRows);
+    return;
+  }
+  
+  var filtered = allRows.filter(function(row) {
+    return row.id === searchId || row.scanId === searchId;
+  });
+  
+  if (filtered.length === 0) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No employee found with ID: ' + esc(searchId) + '</td></tr>';
+  } else {
+    renderTable(filtered);
+  }
+}
+
+document.getElementById('employeeIdInput').addEventListener('input', function(e) {
+  filterByEmployeeId(e.target.value.trim());
+});
+
+document.getElementById('refreshBtn').addEventListener('click', function() {
+  document.getElementById('employeeIdInput').value = '';
+  load();
+});
+
 initApi();
 load();
 </script>
